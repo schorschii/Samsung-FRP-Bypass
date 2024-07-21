@@ -24,11 +24,11 @@ def get_AT_serial(port: str) -> serial.Serial:
 def ATSend(io: serial.Serial, cmd: str) -> bool:
     if not io.isOpen():
         return False
-    print(f"Sending {cmd.encode()}")
+    print(f"<== Sending:\n{cmd}")
     io.write(cmd.encode())
-    time.sleep(0.5)
+    time.sleep(1.5)
     ret = io.read_all()
-    print(f"Received {ret}")
+    print(f"==> Received:\n{ret.decode('utf-8')}")
 
     if b"OK\r\n" in ret:
         return True
@@ -44,11 +44,10 @@ def ATSend(io: serial.Serial, cmd: str) -> bool:
 
 def tryATCmds(io: serial.Serial, cmds: List[str]):
     for i, cmd in enumerate(cmds):
-        print(f"Trying method {i}")
         try:
             res = ATSend(io, cmd)
             if not res:
-                print("OK")
+                print("=== OK")
         except:
             print(f"Error while sending command {cmd}")    
     try:
@@ -60,13 +59,22 @@ def enableADB():
     default_port = list_serial_ports()
     port = input(f"Choose a serial port (default={default_port.device}) :") or str(default_port.device)
     io = get_AT_serial(port)
-    print("Initial...")
-    # Seems to check if we are in *#0*# mode but apparently not working on the samsung I have
+
+    # seems to check if we are in *#0*# mode but apparently not working on the samsung I have
+    print("Initial...");
     ATSend(io, "AT+KSTRINGB=0,3\r\n")
     print("Go to emergency dialer and enter *#0*#, press enter when done")
     input()
 
-    print("Enabling USB Debugging...")
+    print("Gathering information...")
+    cmds = []
+    cmds.append("AT+VERSNAME=3,2,3\r\n")
+    cmds.append("AT+DEVCONINFO\r\n")
+    cmds.append("AT+SVCIFPGM=1,1\r\n")
+    cmds.append("AT+REACTIVE=1,0,0\r\n") # returns TRIGGERED in case of FRP lock
+    tryATCmds(io, cmds)
+
+    print("Enabling USB Debugging (old method)...")
     cmds = []
     cmds.append("AT+DUMPCTRL=1,0\r\n")
     cmds.append("AT+DEBUGLVC=0,5\r\n")
@@ -74,10 +82,39 @@ def enableADB():
     cmds.append("AT+ACTIVATE=0,0,0\r\n")
     cmds.append("AT+SWATD=1\r\n")
     cmds.append("AT+DEBUGLVC=0,5\r\n")
+
+    tryATCmds(io, cmds)
+
+    # new method discovered from Android Tool
+    print("Enabling USB Debugging (new method)...")
+    cmds = []
+    cmds.append("AT+SWATD=0\r\n")
+    cmds.append("AT+ACTIVATE=0,0,0\r\n")
+    cmds.append("AT+DUMPCTRL=1,0\r\n")
+    cmds.append("AT+SWATD=1\r\n")
+
+    cmds.append("AT+DEBUGLVC=0,5\r\n")
+    cmds.append("AT+DEBUGLVC=0,5;\r\n") # new
+    cmds.append("AT+KSTRINGB=0,3\r\n")
+    cmds.append("AT+DEBUGLVC=0,5\r\n")
+    cmds.append("AT+DEBUGLVC=0,5;\r\n")
+
+    cmds.append("AT+DEBUGLVC=0,5\r\n")
+    cmds.append("AT+DEBUGLVC=0,5;\r\n")
+    cmds.append("AT+KSTRINGB=0,3\r\n")
+    cmds.append("AT+DUMPCTRL=1,0\r\n")
+    cmds.append("AT+DEBUGLVC=0,5\r\n")
+    cmds.append("AT+DEBUGLVC=0,5;\r\n")
+    cmds.append("AT+KSTRINGB=0,3\r\n")
+    cmds.append("AT+DUMPCTRL=1,0\r\n")
+    cmds.append("AT+DEBUGLVC=0,5\r\n")
+    cmds.append("AT+DEBUGLVC=0,5;\r\n")
+
     tryATCmds(io, cmds)
 
     print("USB Debugging should be enabled")
     print("If USB Debugging prompt does not appear, try unplug/replug the USB cable")
+
 
 if __name__ == "__main__":
     enableADB()
