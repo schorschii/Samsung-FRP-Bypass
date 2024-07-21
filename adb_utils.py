@@ -4,20 +4,15 @@ import time
 def adb(cmd: str):
     return subprocess.call(f"adb {cmd}",shell=True)
 
-def uploadAndRunFRPBypass():
-    print("Pushing FRP bypasser binary")
-    adb("push frp.bin /data/local/tmp/temp")
-    print("Giving it 777 permissions")
-    adb("shell chmod 777 /data/local/tmp/temp")
-    print("Executing the binary")
-    adb("shell /data/local/tmp/temp")
-
 def manualFRPBypass():
     # Equivalent to uploading the frp.bin and executing it if the property ro.secure is set to 1
     print("Bypassing FRP...")
     cmds = []
+    cmds.append("am start -n com.google.android.gsf.login/")
+    cmds.append("am start -n com.google.android.gsf.login.LoginActivity")
     cmds.append("settings put global setup_wizard_has_run 1")
     cmds.append("settings put secure user_setup_complete 1")
+    cmds.append("settings put global device_provisioned 1")
     cmds.append("content insert --uri content://settings/secure --bind name:s:DEVICE_PROVISIONED --bind value:i:1")
     cmds.append("content insert --uri content://settings/secure --bind name:s:user_setup_complete --bind value:i:1")
     # The command with INSTALL_NON_MARKET_APPS seems not needed
@@ -42,5 +37,4 @@ def waitForDevice():
 
 if __name__ == "__main__":
     waitForDevice()
-    uploadAndRunFRPBypass() # Or manualFRPBypass()
-    
+    manualFRPBypass()
