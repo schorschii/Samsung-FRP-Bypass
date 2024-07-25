@@ -21,12 +21,12 @@ def list_serial_ports() -> list_ports_common.ListPortInfo:
 def get_AT_serial(port: str) -> serial.Serial:
     return serial.Serial(port, baudrate=SERIAL_BAUDRATE, timeout=SERIAL_TIMEOUT)
 
-def ATSend(io: serial.Serial, cmd: str) -> bool:
+def ATSend(io: serial.Serial, cmd: str, delay: int = 0) -> bool:
     if not io.isOpen():
         return False
     print(f"<== Sending:\n{cmd}")
     io.write(cmd.encode())
-    time.sleep(1.5)
+    time.sleep(delay)
     ret = io.read_all()
     print(f"==> Received:\n{ret.decode('utf-8')}")
 
@@ -42,23 +42,20 @@ def ATSend(io: serial.Serial, cmd: str) -> bool:
         return False
     return True
 
-def tryATCmds(io: serial.Serial, cmds: List[str]):
+def tryATCmds(io: serial.Serial, cmds: List[str], delay: int = 0):
     for i, cmd in enumerate(cmds):
         try:
-            res = ATSend(io, cmd)
+            res = ATSend(io, cmd, delay)
             if not res:
                 print("=== OK")
         except:
-            print(f"Error while sending command {cmd}")    
-    try:
-        io.close()
-    except:
-        print("Unable to properly close serial connection")
+            print(f"Error while sending command {cmd}")
 
 def enableADB():
     default_port = list_serial_ports()
     port = input(f"Choose a serial port (default={default_port.device}) :") or str(default_port.device)
     io = get_AT_serial(port)
+
 
     # seems to check if we are in *#0*# mode but apparently not working on the samsung I have
     print("Initial...");
@@ -66,13 +63,16 @@ def enableADB():
     print("Go to emergency dialer and enter *#0*#, press enter when done")
     input()
 
+
     print("Gathering information...")
     cmds = []
     cmds.append("AT+VERSNAME=3,2,3\r\n")
     cmds.append("AT+DEVCONINFO\r\n")
     cmds.append("AT+SVCIFPGM=1,1\r\n")
     cmds.append("AT+REACTIVE=1,0,0\r\n") # returns TRIGGERED in case of FRP lock
-    tryATCmds(io, cmds)
+
+    tryATCmds(io, cmds, 1.5) # 1.5s delay is necessary to get device info
+
 
     print("Enabling USB Debugging (old method)...")
     cmds = []
@@ -83,7 +83,8 @@ def enableADB():
     cmds.append("AT+SWATD=1\r\n")
     cmds.append("AT+DEBUGLVC=0,5\r\n")
 
-    tryATCmds(io, cmds)
+    tryATCmds(io, cmds, 0.1) # delay maybe needs adjustment or can be removed
+
 
     # new method discovered from Android Tool
     print("Enabling USB Debugging (new method)...")
@@ -110,7 +111,13 @@ def enableADB():
     cmds.append("AT+DEBUGLVC=0,5\r\n")
     cmds.append("AT+DEBUGLVC=0,5;\r\n")
 
-    tryATCmds(io, cmds)
+    tryATCmds(io, cmds, 0.1) # delay maybe needs adjustment or can be removed
+
+
+    try:
+        io.close()
+    except:
+        print("Unable to properly close serial connection")
 
     print("USB Debugging should be enabled")
     print("If USB Debugging prompt does not appear, try unplug/replug the USB cable")
